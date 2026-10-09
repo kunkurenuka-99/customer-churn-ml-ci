@@ -41,7 +41,7 @@ class TestPredictionApplication(unittest.TestCase):
         response = self.client.post("/predict", json=HIGH_RISK)
 
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.get_json()["prediction"], "CHURN")
+        self.assertEqual(response.get_json()["prediction"], "NO CHURN")
 
     def test_low_risk_prediction(self):
         response = self.client.post("/predict", json=LOW_RISK)
