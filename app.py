@@ -1,70 +1,33 @@
-from pathlib import Path
-
+from fastapi import FastAPI
+from pydantic import BaseModel
 import joblib
 import pandas as pd
-from flask import Flask, jsonify, request
 
-app = Flask(__name__)
-
-MODEL_PATH = Path("churn_model.pkl")
-FEATURES = [
-    "SeniorCitizen", "tenure", "MonthlyCharges", "TotalCharges",
-    "gender", "Partner", "Dependents", "PhoneService", "MultipleLines",
-    "InternetService", "OnlineSecurity", "OnlineBackup", "DeviceProtection",
-    "TechSupport", "StreamingTV", "StreamingMovies", "Contract",
-    "PaperlessBilling", "PaymentMethod",
-]
+app = FastAPI(title="Customer Churn Prediction")
+model = joblib.load("churn_model.joblib")
 
 
-def load_model():
-    if not MODEL_PATH.exists():
-        raise FileNotFoundError(
-            "churn_model.pkl was not found. "
-            "Run the training pipeline first."
-        )
-    return joblib.load(MODEL_PATH)
+class Customer(BaseModel):
+    gender: str
+    SeniorCitizen: int
+    Partner: str
+    Dependents: str
+    tenure: int
+    PhoneService: str
+    MultipleLines: str
+    InternetService: str
+    OnlineSecurity: str
 
 
-@app.get("/")
-def health_check():
-    return jsonify({
-        "status": "ok",
-        "service": "customer-churn-prediction"
-    })
+@app.get("/health")
+def health():
+    return {"status": "ok"}
 
 
 @app.post("/predict")
-def predict():
-    data = request.get_json(silent=True)
-
-    if not data:
-        return jsonify({"error": "JSON request body is required"}), 400
-
-    missing_fields = [
-        feature for feature in FEATURES
-        if feature not in data
-    ]
-
-    if missing_fields:
-        return jsonify({
-            "error": "Missing required fields",
-            "missing_fields": missing_fields
-        }), 400
-
-    sample = pd.DataFrame([{
-        feature: data[feature]
-        for feature in FEATURES
-    }])
-
-    model = load_model()
-    prediction_code = int(model.predict(sample)[0])
-    prediction = "CHURN" if prediction_code == 1 else "NO CHURN"
-
-    return jsonify({
-        "prediction": prediction,
-        "prediction_code": prediction_code
-    })
-
-
-if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000)
+def predict(c: Customer):
+    df = pd.DataFrame([c.model_dump()])
+    pred = int(model.predict(df)[0])
+    prob = float(model.predict_proba(df)[0][1])
+    return {"churn": "Yes" if pred == 1 else "No",
+            "churn_probability": round(prob, 4)}
